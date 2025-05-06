@@ -59,7 +59,7 @@ const bossWidth = 60;
 const bossHeight = 40;
 const bossColor = '#8A2BE2';
 const bossSpeedY = 0.3;
-const bossSpeedX = 0.5;
+const bossSpeedX = 2;
 let bossDirectionX = 1;
 const bossInitialY = canvas.height * 0.3;
 let boss;
@@ -76,10 +76,6 @@ let bossChargeTimer = 0;
 let isBossCharging = false;
 let chargeDirection = 0;
 let chargeSpeed = 0;
-let bossInvincible = false;
-let bossInvincibleTimer = 0;
-const bossInvincibleDuration = 1000;
-let bossLastHitTime = 0;
 let bossMovementPattern = 0;
 let bossMovementTimer = 0;
 const bossMovementInterval = 3000;
@@ -101,6 +97,87 @@ const powerUpTypes = [
 const powerUpSpeed = 0.5;
 const powerUpSize = 15;
 const powerUpDropChance = 0.2;
+
+// コマンド処理の機能を追加
+const commandInput = document.getElementById('commandInput');
+const executeCommand = document.getElementById('executeCommand');
+const commandHistory = document.getElementById('commandHistory');
+
+function addCommandMessage(message, type = '') {
+    const p = document.createElement('p');
+    p.textContent = message;
+    if (type) p.className = type;
+    commandHistory.appendChild(p);
+    commandHistory.scrollTop = commandHistory.scrollHeight;
+}
+
+function executeGameCommand(command) {
+    const parts = command.trim().split(' ');
+    const cmd = parts[0].toLowerCase();
+    const args = parts.slice(1);
+
+    switch (cmd) {
+        case '/help':
+            addCommandMessage('利用可能なコマンド:');
+            addCommandMessage('/help - コマンド一覧を表示');
+            addCommandMessage('/stage [1-4] - ステージを変更');
+            addCommandMessage('/life [1-10] - ライフを設定');
+            addCommandMessage('/score [数値] - スコアを設定');
+            break;
+
+        case '/stage':
+            const stageNum = parseInt(args[0]);
+            if (stageNum >= 1 && stageNum <= 4) {
+                currentStage = stageNum;
+                createEnemies();
+                addCommandMessage(`ステージを ${stageNum} に変更しました`, 'success');
+            } else {
+                addCommandMessage('ステージ番号は1から4の間で指定してください', 'error');
+            }
+            break;
+
+        case '/life':
+            const lifeNum = parseInt(args[0]);
+            if (lifeNum >= 1 && lifeNum <= 10) {
+                lives = lifeNum;
+                addCommandMessage(`ライフを ${lifeNum} に設定しました`, 'success');
+            } else {
+                addCommandMessage('ライフは1から10の間で指定してください', 'error');
+            }
+            break;
+
+        case '/score':
+            const scoreNum = parseInt(args[0]);
+            if (!isNaN(scoreNum) && scoreNum >= 0) {
+                score = scoreNum;
+                addCommandMessage(`スコアを ${scoreNum} に設定しました`, 'success');
+            } else {
+                addCommandMessage('有効な数値を入力してください', 'error');
+            }
+            break;
+
+        default:
+            addCommandMessage('不明なコマンドです。 /help でコマンド一覧を確認できます', 'error');
+    }
+}
+
+executeCommand.addEventListener('click', () => {
+    const command = commandInput.value;
+    if (command) {
+        executeGameCommand(command);
+        commandInput.value = '';
+    }
+});
+
+commandInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        const command = commandInput.value;
+        if (command) {
+            executeGameCommand(command);
+            commandInput.value = '';
+        }
+    }
+});
 
 startButton.addEventListener('click', startGame);
 
@@ -288,11 +365,6 @@ function drawEnemies() {
     if (currentStage === 4 && bossAlive && boss) {
         ctx.save();
         
-        // 無敵時間中のエフェクト
-        if (bossInvincible) {
-            ctx.globalAlpha = 0.5 + Math.sin(Date.now() * 0.01) * 0.3;
-        }
-        
         // ボスの本体
         ctx.fillStyle = boss.color;
         ctx.beginPath();
@@ -409,33 +481,29 @@ function updateBoss() {
             chargeSpeed = 0;
         }
 
-        // 無敵時間の処理
-        if (bossInvincible) {
-            if (currentTime - bossLastHitTime > bossInvincibleDuration) {
-                bossInvincible = false;
-            }
-        }
-
         // 移動パターン
         const time = Date.now() * 0.001;
         switch (bossMovementPattern) {
             case 0: // 通常の左右移動
                 const verticalOffset = Math.sin(time * 2) * 10;
                 boss.y = canvas.height * 0.25 + verticalOffset;
-                boss.x += bossSpeedX * bossDirectionX * (1 + Math.abs(Math.sin(time * 3)) * 0.5);
-                if (boss.x < 0) {
+                boss.x += bossSpeedX * bossDirectionX;
+                if (boss.x <= 0) {
                     boss.x = 0;
-                    bossDirectionX *= -1;
-                } else if (boss.x > canvas.width - boss.width) {
+                    bossDirectionX = 1;
+                } else if (boss.x >= canvas.width - boss.width) {
                     boss.x = canvas.width - boss.width;
-                    bossDirectionX *= -1;
+                    bossDirectionX = -1;
                 }
                 break;
             case 1: // ジグザグ移動
                 boss.y = canvas.height * 0.25 + Math.sin(time * 4) * 30;
                 boss.x += bossSpeedX * 1.5 * Math.cos(time * 3);
-                if (boss.x < 0) boss.x = 0;
-                else if (boss.x > canvas.width - boss.width) boss.x = canvas.width - boss.width;
+                if (boss.x <= 0) {
+                    boss.x = 0;
+                } else if (boss.x >= canvas.width - boss.width) {
+                    boss.x = canvas.width - boss.width;
+                }
                 break;
             case 2: // 円運動
                 const radius = 100;
@@ -742,11 +810,9 @@ function updateGame() {
     if (currentStage === 4 && bossAlive && boss) {
         for (let i = bullets.length - 1; i >= 0; i--) {
             const bullet = bullets[i];
-            if (!bossInvincible && checkCollision(bullet, boss)) {
+            if (checkCollision(bullet, boss)) {
                 boss.hp--;
                 bullets.splice(i, 1);
-                bossLastHitTime = Date.now();
-                bossInvincible = true;
                 if (boss.hp <= 0) {
                     bossAlive = false;
                     score += 100;

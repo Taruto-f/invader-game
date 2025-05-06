@@ -30,11 +30,130 @@
         button:hover {
             background-color: #45a049;
         }
+        .game-info {
+            background-color: #222;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            max-width: 480px;
+            width: 100%;
+        }
+        .game-info h2 {
+            color: #4CAF50;
+            margin-top: 0;
+        }
+        .game-info ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .game-info li {
+            margin-bottom: 10px;
+        }
+        .game-info .key {
+            background-color: #333;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .command-section {
+            background-color: #222;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            max-width: 480px;
+            width: 100%;
+        }
+        .command-section h2 {
+            color: #4CAF50;
+            margin-top: 0;
+        }
+        .command-input {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .command-input input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background-color: #333;
+            color: #eee;
+            font-family: monospace;
+        }
+        .command-input button {
+            margin: 0;
+            padding: 8px 15px;
+        }
+        .command-history {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #333;
+            border-radius: 4px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .command-history p {
+            margin: 5px 0;
+            color: #aaa;
+        }
+        .command-history .success {
+            color: #4CAF50;
+        }
+        .command-history .error {
+            color: #f44336;
+        }
     </style>
 </head>
 <body>
     <button id="startButton">ゲームスタート</button>
     <canvas id="gameCanvas" width="480" height="320"></canvas>
+    <div class="game-info">
+        <h2>ゲームの説明</h2>
+        <ul>
+            <li>🎮 <strong>操作方法</strong>：
+                <ul>
+                    <li>移動：<span class="key">←</span> <span class="key">→</span> キー または <span class="key">A</span> <span class="key">D</span> キー</li>
+                    <li>発射：<span class="key">スペース</span> キー</li>
+                </ul>
+            </li>
+            <li>🎯 <strong>ゲームの目的</strong>：
+                <ul>
+                    <li>敵を全て倒してステージをクリア</li>
+                    <li>4つのステージをクリアしてボスを倒す</li>
+                </ul>
+            </li>
+            <li>💫 <strong>パワーアップ</strong>：
+                <ul>
+                    <li>青：弾数2倍（30秒間）</li>
+                    <li>ピンク：ライフ+1</li>
+                    <li>黄色：移動速度アップ（30秒間）</li>
+                </ul>
+            </li>
+            <li>⚠️ <strong>注意</strong>：
+                <ul>
+                    <li>敵の弾に当たるとライフが減る</li>
+                    <li>ボスに当たると即ゲームオーバー</li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+    <div class="command-section">
+        <h2>コマンド入力</h2>
+        <div class="command-input">
+            <input type="text" id="commandInput" placeholder="コマンドを入力...">
+            <button id="executeCommand">実行</button>
+        </div>
+        <div class="command-history" id="commandHistory">
+            <p>利用可能なコマンド:</p>
+            <p>/help - コマンド一覧を表示</p>
+            <p>/stage [1-4] - ステージを変更</p>
+            <p>/life [1-10] - ライフを設定</p>
+            <p>/score [数値] - スコアを設定</p>
+        </div>
+    </div>
     <script src="script.js"></script>
 </body>
 </html>
