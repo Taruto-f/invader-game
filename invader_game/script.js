@@ -61,7 +61,7 @@ const bossColor = '#8A2BE2';
 const bossSpeedY = 0.3;
 const bossSpeedX = 0.5;
 let bossDirectionX = 1;
-const bossInitialY = canvas.height * 0.1;
+const bossInitialY = canvas.height * 0.3;
 let boss;
 let bossAlive = false;
 const bossHP = 20;
@@ -354,7 +354,7 @@ function updateBoss() {
     if (!bossAlive || !boss) return;
     
     boss.y += boss.speedY;
-    if (boss.y > canvas.height * 0.15) {
+    if (boss.y > canvas.height * 0.25) {
         boss.speedY = 0;
         bossMoveTimer++;
         bossAttackTimer++;
