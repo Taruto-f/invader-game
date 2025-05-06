@@ -68,9 +68,14 @@ const bossHP = 20;
 let currentBossHP = bossHP;
 const bossMoveInterval = 150;
 let bossMoveTimer = 0;
-let bossAttackPattern = 0;
+let bossAttackPhase = 0;
 let bossAttackTimer = 0;
 const bossAttackInterval = 3000;
+let bossLastPhaseChange = 0;
+let bossChargeTimer = 0;
+let isBossCharging = false;
+let chargeDirection = 0;
+let chargeSpeed = 0;
 
 const bossBulletWidth = 10;
 const bossBulletHeight = 15;
@@ -275,6 +280,7 @@ function drawEnemies() {
     // ボスの描画
     if (currentStage === 4 && bossAlive && boss) {
         ctx.save();
+        
         // ボスの本体
         ctx.fillStyle = boss.color;
         ctx.beginPath();
@@ -286,33 +292,45 @@ function drawEnemies() {
         ctx.closePath();
         ctx.fill();
 
-        // ボスの装飾
-        ctx.strokeStyle = '#FF00FF';
+        // エネルギーフィールド
+        const time = Date.now() * 0.001;
+        ctx.strokeStyle = `hsl(${(time * 50) % 360}, 100%, 50%)`;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(boss.x + boss.width * 0.2, boss.y + boss.height * 0.3);
-        ctx.lineTo(boss.x + boss.width * 0.8, boss.y + boss.height * 0.3);
+        ctx.arc(boss.x + boss.width / 2, boss.y + boss.height / 2, 
+                boss.width * 0.6 + Math.sin(time * 3) * 5, 0, Math.PI * 2);
         ctx.stroke();
 
-        // ボスの目
-        ctx.fillStyle = '#FF1493';
+        // パワーエフェクト
         ctx.beginPath();
-        ctx.arc(boss.x + boss.width * 0.3, boss.y + boss.height * 0.3, boss.width * 0.1, 0, Math.PI * 2);
-        ctx.arc(boss.x + boss.width * 0.7, boss.y + boss.height * 0.3, boss.width * 0.1, 0, Math.PI * 2);
-        ctx.fill();
-
-        // ボスの口
-        ctx.fillStyle = '#FF69B4';
-        ctx.beginPath();
-        ctx.arc(boss.x + boss.width / 2, boss.y + boss.height * 0.5, boss.width * 0.15, 0, Math.PI);
-        ctx.fill();
-
-        // ボスの光るエフェクト
-        ctx.strokeStyle = '#FF00FF';
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2 + time;
+            const x = boss.x + boss.width / 2 + Math.cos(angle) * boss.width * 0.4;
+            const y = boss.y + boss.height / 2 + Math.sin(angle) * boss.width * 0.4;
+            ctx.moveTo(boss.x + boss.width / 2, boss.y + boss.height / 2);
+            ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = `hsl(${(time * 100) % 360}, 100%, 70%)`;
         ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(boss.x + boss.width / 2, boss.y + boss.height / 2, boss.width * 0.4, 0, Math.PI * 2);
         ctx.stroke();
+
+        // 攻撃エフェクト
+        if (isBossCharging) {
+            // チャージエフェクト
+            ctx.beginPath();
+            ctx.arc(boss.x + boss.width / 2, boss.y + boss.height / 2, 
+                    boss.width * 0.4 + Math.sin(time * 10) * 10, 0, Math.PI * 2);
+            ctx.strokeStyle = '#FF0000';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        } else if (bossAttackPhase === 1) {
+            ctx.beginPath();
+            ctx.arc(boss.x + boss.width / 2, boss.y + boss.height / 2, 
+                    boss.width * 0.3 + Math.sin(time * 5) * 3, 0, Math.PI * 2);
+            ctx.strokeStyle = '#FF0000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
 
         ctx.restore();
     }
@@ -320,7 +338,19 @@ function drawEnemies() {
     // ボスの弾の描画
     bossBullets.forEach(bullet => {
         ctx.fillStyle = bullet.color;
-        ctx.fillRect(bullet.x, bullet.y, bossBulletWidth, bossBulletHeight);
+        ctx.beginPath();
+        ctx.arc(bullet.x + bullet.width / 2, bullet.y + bullet.height / 2, 
+                bullet.width / 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 弾の軌跡
+        ctx.strokeStyle = 'rgba(255, 255, 0, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(bullet.x + bullet.width / 2, bullet.y + bullet.height / 2);
+        ctx.lineTo(bullet.x + bullet.width / 2 - bullet.velocityX * 2, 
+                   bullet.y + bullet.height / 2 - bullet.velocityY * 2);
+        ctx.stroke();
     });
 }
 
@@ -353,45 +383,87 @@ function checkCollision(bullet, enemy) {
 function updateBoss() {
     if (!bossAlive || !boss) return;
     
+    const currentTime = Date.now();
     boss.y += boss.speedY;
     if (boss.y > canvas.height * 0.25) {
         boss.speedY = 0;
         bossMoveTimer++;
         bossAttackTimer++;
 
-        if (bossAttackTimer >= bossAttackInterval) {
-            bossAttackPattern = (bossAttackPattern + 1) % 3;
-            bossAttackTimer = 0;
+        // 攻撃フェーズの切り替え
+        if (currentTime - bossLastPhaseChange > bossAttackPhaseInterval) {
+            bossAttackPhase = (bossAttackPhase + 1) % 4;
+            bossLastPhaseChange = currentTime;
+            isBossCharging = false;
+            chargeSpeed = 0;
         }
 
+        // 移動パターン
         if (bossMoveTimer >= bossMoveInterval) {
             bossDirectionX *= -1;
             bossMoveTimer = 0;
         }
 
-        boss.x += bossSpeedX * bossDirectionX;
-        if (boss.x < 0) boss.x = 0;
-        else if (boss.x > canvas.width - boss.width) boss.x = canvas.width - boss.width;
+        // より動的な移動
+        const time = Date.now() * 0.001;
+        const verticalOffset = Math.sin(time * 2) * 10;
+        boss.y = canvas.height * 0.25 + verticalOffset;
+        
+        // チャージ攻撃の処理
+        if (isBossCharging) {
+            bossChargeTimer++;
+            if (bossChargeTimer < 60) { // チャージ時間
+                chargeSpeed += 0.2;
+            } else if (bossChargeTimer < 120) { // 突進攻撃
+                boss.x += chargeDirection * chargeSpeed;
+                if (boss.x < 0 || boss.x > canvas.width - boss.width) {
+                    isBossCharging = false;
+                    chargeSpeed = 0;
+                }
+            } else {
+                isBossCharging = false;
+                chargeSpeed = 0;
+            }
+        } else {
+            // 通常の左右移動
+            boss.x += bossSpeedX * bossDirectionX * (1 + Math.abs(Math.sin(time * 3)) * 0.5);
+            if (boss.x < 0) boss.x = 0;
+            else if (boss.x > canvas.width - boss.width) boss.x = canvas.width - boss.width;
+        }
 
-        switch (bossAttackPattern) {
-            case 0:
+        // 攻撃パターン
+        switch (bossAttackPhase) {
+            case 0: // 通常の連続射撃
                 if (bossFireTimer >= bossFireInterval) {
                     fireBossBullet();
                     bossFireTimer = 0;
                 }
                 break;
-            case 1:
+            case 1: // 3方向弾
                 if (bossFireTimer >= bossFireInterval) {
                     fireBossBullet();
-                    fireBossBullet(-0.2);
-                    fireBossBullet(0.2);
+                    fireBossBullet(-0.3);
+                    fireBossBullet(0.3);
                     bossFireTimer = 0;
                 }
                 break;
-            case 2:
+            case 2: // 広範囲弾
                 if (bossFireTimer >= bossFireInterval * 2) {
-                    for (let i = -0.4; i <= 0.4; i += 0.2) {
+                    for (let i = -0.6; i <= 0.6; i += 0.2) {
                         fireBossBullet(i);
+                    }
+                    bossFireTimer = 0;
+                }
+                break;
+            case 3: // チャージ攻撃
+                if (!isBossCharging && bossFireTimer >= bossFireInterval * 3) {
+                    isBossCharging = true;
+                    bossChargeTimer = 0;
+                    chargeDirection = Math.random() < 0.5 ? -1 : 1;
+                    // チャージ中に弾を発射
+                    for (let i = 0; i < 8; i++) {
+                        const angle = (i / 8) * Math.PI * 2;
+                        fireBossBullet(Math.sin(angle) * 0.5, Math.cos(angle) * 0.5);
                     }
                     bossFireTimer = 0;
                 }
@@ -401,10 +473,14 @@ function updateBoss() {
     }
 }
 
-function fireBossBullet(angleOffset = 0) {
+function fireBossBullet(angleOffsetX = 0, angleOffsetY = 1) {
     if (bossAlive && boss) {
         const currentStageData = stageData[currentStage - 1];
         const currentBossBulletSpeed = currentStageData?.bossBulletSpeed || bossBulletSpeed;
+        const speed = Math.sqrt(angleOffsetX * angleOffsetX + angleOffsetY * angleOffsetY);
+        const normalizedX = angleOffsetX / speed;
+        const normalizedY = angleOffsetY / speed;
+        
         const newBossBullet = {
             x: boss.x + boss.width / 2 - bossBulletWidth / 2,
             y: boss.y + boss.height,
@@ -412,8 +488,8 @@ function fireBossBullet(angleOffset = 0) {
             height: bossBulletHeight,
             speed: currentBossBulletSpeed,
             color: bossBulletColor,
-            velocityX: angleOffset * currentBossBulletSpeed,
-            velocityY: currentBossBulletSpeed
+            velocityX: normalizedX * currentBossBulletSpeed,
+            velocityY: normalizedY * currentBossBulletSpeed
         };
         bossBullets.push(newBossBullet);
     }
