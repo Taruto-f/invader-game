@@ -411,10 +411,8 @@ function updateBoss() {
 
         // 無敵時間の処理
         if (bossInvincible) {
-            bossInvincibleTimer++;
             if (currentTime - bossLastHitTime > bossInvincibleDuration) {
                 bossInvincible = false;
-                bossInvincibleTimer = 0;
             }
         }
 
@@ -425,10 +423,19 @@ function updateBoss() {
                 const verticalOffset = Math.sin(time * 2) * 10;
                 boss.y = canvas.height * 0.25 + verticalOffset;
                 boss.x += bossSpeedX * bossDirectionX * (1 + Math.abs(Math.sin(time * 3)) * 0.5);
+                if (boss.x < 0) {
+                    boss.x = 0;
+                    bossDirectionX *= -1;
+                } else if (boss.x > canvas.width - boss.width) {
+                    boss.x = canvas.width - boss.width;
+                    bossDirectionX *= -1;
+                }
                 break;
             case 1: // ジグザグ移動
                 boss.y = canvas.height * 0.25 + Math.sin(time * 4) * 30;
                 boss.x += bossSpeedX * 1.5 * Math.cos(time * 3);
+                if (boss.x < 0) boss.x = 0;
+                else if (boss.x > canvas.width - boss.width) boss.x = canvas.width - boss.width;
                 break;
             case 2: // 円運動
                 const radius = 100;
@@ -440,17 +447,15 @@ function updateBoss() {
         }
 
         // 画面外に出ないように制限
-        if (boss.x < 0) boss.x = 0;
-        else if (boss.x > canvas.width - boss.width) boss.x = canvas.width - boss.width;
         if (boss.y < 0) boss.y = 0;
         else if (boss.y > canvas.height * 0.5) boss.y = canvas.height * 0.5;
 
         // チャージ攻撃の処理
         if (isBossCharging) {
             bossChargeTimer++;
-            if (bossChargeTimer < 30) { // チャージ時間を短く
+            if (bossChargeTimer < 30) {
                 chargeSpeed += 0.3;
-            } else if (bossChargeTimer < 60) { // 突進時間も短く
+            } else if (bossChargeTimer < 60) {
                 boss.x += chargeDirection * chargeSpeed;
                 if (boss.x < 0 || boss.x > canvas.width - boss.width) {
                     isBossCharging = false;
@@ -491,7 +496,6 @@ function updateBoss() {
                     isBossCharging = true;
                     bossChargeTimer = 0;
                     chargeDirection = Math.random() < 0.5 ? -1 : 1;
-                    // チャージ中に弾を発射
                     for (let i = 0; i < 8; i++) {
                         const angle = (i / 8) * Math.PI * 2;
                         fireBossBullet(Math.sin(angle) * 0.5, Math.cos(angle) * 0.5);
