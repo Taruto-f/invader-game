@@ -61,13 +61,16 @@ const bossColor = '#8A2BE2';
 const bossSpeedY = 0.3;
 const bossSpeedX = 0.5;
 let bossDirectionX = 1;
-const bossInitialY = -bossHeight;
+const bossInitialY = canvas.height * 0.1;
 let boss;
 let bossAlive = false;
 const bossHP = 20;
 let currentBossHP = bossHP;
 const bossMoveInterval = 150;
 let bossMoveTimer = 0;
+let bossAttackPattern = 0;
+let bossAttackTimer = 0;
+const bossAttackInterval = 3000;
 
 const bossBulletWidth = 10;
 const bossBulletHeight = 15;
@@ -347,7 +350,58 @@ function checkCollision(bullet, enemy) {
     );
 }
 
-function fireBossBullet() {
+function updateBoss() {
+    if (!bossAlive || !boss) return;
+    
+    boss.y += boss.speedY;
+    if (boss.y > canvas.height * 0.15) {
+        boss.speedY = 0;
+        bossMoveTimer++;
+        bossAttackTimer++;
+
+        if (bossAttackTimer >= bossAttackInterval) {
+            bossAttackPattern = (bossAttackPattern + 1) % 3;
+            bossAttackTimer = 0;
+        }
+
+        if (bossMoveTimer >= bossMoveInterval) {
+            bossDirectionX *= -1;
+            bossMoveTimer = 0;
+        }
+
+        boss.x += bossSpeedX * bossDirectionX;
+        if (boss.x < 0) boss.x = 0;
+        else if (boss.x > canvas.width - boss.width) boss.x = canvas.width - boss.width;
+
+        switch (bossAttackPattern) {
+            case 0:
+                if (bossFireTimer >= bossFireInterval) {
+                    fireBossBullet();
+                    bossFireTimer = 0;
+                }
+                break;
+            case 1:
+                if (bossFireTimer >= bossFireInterval) {
+                    fireBossBullet();
+                    fireBossBullet(-0.2);
+                    fireBossBullet(0.2);
+                    bossFireTimer = 0;
+                }
+                break;
+            case 2:
+                if (bossFireTimer >= bossFireInterval * 2) {
+                    for (let i = -0.4; i <= 0.4; i += 0.2) {
+                        fireBossBullet(i);
+                    }
+                    bossFireTimer = 0;
+                }
+                break;
+        }
+        bossFireTimer++;
+    }
+}
+
+function fireBossBullet(angleOffset = 0) {
     if (bossAlive && boss) {
         const currentStageData = stageData[currentStage - 1];
         const currentBossBulletSpeed = currentStageData?.bossBulletSpeed || bossBulletSpeed;
@@ -357,7 +411,9 @@ function fireBossBullet() {
             width: bossBulletWidth,
             height: bossBulletHeight,
             speed: currentBossBulletSpeed,
-            color: bossBulletColor
+            color: bossBulletColor,
+            velocityX: angleOffset * currentBossBulletSpeed,
+            velocityY: currentBossBulletSpeed
         };
         bossBullets.push(newBossBullet);
     }
@@ -365,9 +421,15 @@ function fireBossBullet() {
 
 function updateBossBullets() {
     for (let i = bossBullets.length - 1; i >= 0; i--) {
-        bossBullets[i].y += bossBullets[i].speed;
-        if (bossBullets[i].y > canvas.height) bossBullets.splice(i, 1);
-        else if (checkCollision(bossBullets[i], player)) {
+        const bullet = bossBullets[i];
+        bullet.x += bullet.velocityX || 0;
+        bullet.y += bullet.velocityY;
+
+        if (bullet.y > canvas.height || bullet.x < 0 || bullet.x > canvas.width) {
+            bossBullets.splice(i, 1);
+            continue;
+        }
+        if (checkCollision(bossBullets[i], player)) {
             bossBullets.splice(i, 1);
             lives--;
             if (lives <= 0) gameOver();
@@ -635,29 +697,6 @@ function updatePlayerVelocity() {
         player.velocityX = 3;
     } else {
         player.velocityX = 0;
-    }
-}
-
-function updateBoss() {
-    if (!bossAlive || !boss) return;
-    
-    boss.y += boss.speedY;
-    if (boss.y > canvas.height * 0.2) {
-        boss.speedY = 0;
-        bossMoveTimer++;
-        if (bossMoveTimer >= bossMoveInterval) {
-            bossDirectionX *= -1;
-            bossMoveTimer = 0;
-        }
-        boss.x += bossSpeedX * bossDirectionX;
-        if (boss.x < 0) boss.x = 0;
-        else if (boss.x > canvas.width - boss.width) boss.x = canvas.width - boss.width;
-
-        bossFireTimer++;
-        if (bossFireTimer >= bossFireInterval) {
-            fireBossBullet();
-            bossFireTimer = 0;
-        }
     }
 }
 
