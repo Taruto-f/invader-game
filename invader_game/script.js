@@ -57,7 +57,7 @@ const stageData = [
 
 const bossWidth = 60;
 const bossHeight = 40;
-const bossColor = 'purple';
+const bossColor = '#8A2BE2';
 const bossSpeedY = 0.3;
 const bossSpeedX = 0.5;
 let bossDirectionX = 1;
@@ -283,18 +283,33 @@ function drawEnemies() {
         ctx.closePath();
         ctx.fill();
 
+        // ボスの装飾
+        ctx.strokeStyle = '#FF00FF';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(boss.x + boss.width * 0.2, boss.y + boss.height * 0.3);
+        ctx.lineTo(boss.x + boss.width * 0.8, boss.y + boss.height * 0.3);
+        ctx.stroke();
+
         // ボスの目
-        ctx.fillStyle = 'red';
+        ctx.fillStyle = '#FF1493';
         ctx.beginPath();
         ctx.arc(boss.x + boss.width * 0.3, boss.y + boss.height * 0.3, boss.width * 0.1, 0, Math.PI * 2);
         ctx.arc(boss.x + boss.width * 0.7, boss.y + boss.height * 0.3, boss.width * 0.1, 0, Math.PI * 2);
         ctx.fill();
 
         // ボスの口
-        ctx.fillStyle = 'white';
+        ctx.fillStyle = '#FF69B4';
         ctx.beginPath();
         ctx.arc(boss.x + boss.width / 2, boss.y + boss.height * 0.5, boss.width * 0.15, 0, Math.PI);
         ctx.fill();
+
+        // ボスの光るエフェクト
+        ctx.strokeStyle = '#FF00FF';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(boss.x + boss.width / 2, boss.y + boss.height / 2, boss.width * 0.4, 0, Math.PI * 2);
+        ctx.stroke();
 
         ctx.restore();
     }
