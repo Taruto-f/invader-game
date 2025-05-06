@@ -64,18 +64,25 @@ let bossDirectionX = 1;
 const bossInitialY = canvas.height * 0.3;
 let boss;
 let bossAlive = false;
-const bossHP = 20;
+const bossHP = 50;
 let currentBossHP = bossHP;
 const bossMoveInterval = 150;
 let bossMoveTimer = 0;
 let bossAttackPhase = 0;
 let bossAttackTimer = 0;
-const bossAttackInterval = 3000;
+const bossAttackInterval = 1500;
 let bossLastPhaseChange = 0;
 let bossChargeTimer = 0;
 let isBossCharging = false;
 let chargeDirection = 0;
 let chargeSpeed = 0;
+let bossInvincible = false;
+let bossInvincibleTimer = 0;
+const bossInvincibleDuration = 1000;
+let bossLastHitTime = 0;
+let bossMovementPattern = 0;
+let bossMovementTimer = 0;
+const bossMovementInterval = 3000;
 
 const bossBulletWidth = 10;
 const bossBulletHeight = 15;
@@ -281,6 +288,11 @@ function drawEnemies() {
     if (currentStage === 4 && bossAlive && boss) {
         ctx.save();
         
+        // 無敵時間中のエフェクト
+        if (bossInvincible) {
+            ctx.globalAlpha = 0.5 + Math.sin(Date.now() * 0.01) * 0.3;
+        }
+        
         // ボスの本体
         ctx.fillStyle = boss.color;
         ctx.beginPath();
@@ -316,19 +328,11 @@ function drawEnemies() {
 
         // 攻撃エフェクト
         if (isBossCharging) {
-            // チャージエフェクト
             ctx.beginPath();
             ctx.arc(boss.x + boss.width / 2, boss.y + boss.height / 2, 
                     boss.width * 0.4 + Math.sin(time * 10) * 10, 0, Math.PI * 2);
             ctx.strokeStyle = '#FF0000';
             ctx.lineWidth = 3;
-            ctx.stroke();
-        } else if (bossAttackPhase === 1) {
-            ctx.beginPath();
-            ctx.arc(boss.x + boss.width / 2, boss.y + boss.height / 2, 
-                    boss.width * 0.3 + Math.sin(time * 5) * 3, 0, Math.PI * 2);
-            ctx.strokeStyle = '#FF0000';
-            ctx.lineWidth = 2;
             ctx.stroke();
         }
 
@@ -389,32 +393,64 @@ function updateBoss() {
         boss.speedY = 0;
         bossMoveTimer++;
         bossAttackTimer++;
+        bossMovementTimer++;
+
+        // 移動パターンの切り替え
+        if (bossMovementTimer >= bossMovementInterval) {
+            bossMovementPattern = (bossMovementPattern + 1) % 3;
+            bossMovementTimer = 0;
+        }
 
         // 攻撃フェーズの切り替え
-        if (currentTime - bossLastPhaseChange > bossAttackPhaseInterval) {
+        if (currentTime - bossLastPhaseChange > bossAttackInterval) {
             bossAttackPhase = (bossAttackPhase + 1) % 4;
             bossLastPhaseChange = currentTime;
             isBossCharging = false;
             chargeSpeed = 0;
         }
 
-        // 移動パターン
-        if (bossMoveTimer >= bossMoveInterval) {
-            bossDirectionX *= -1;
-            bossMoveTimer = 0;
+        // 無敵時間の処理
+        if (bossInvincible) {
+            bossInvincibleTimer++;
+            if (currentTime - bossLastHitTime > bossInvincibleDuration) {
+                bossInvincible = false;
+                bossInvincibleTimer = 0;
+            }
         }
 
-        // より動的な移動
+        // 移動パターン
         const time = Date.now() * 0.001;
-        const verticalOffset = Math.sin(time * 2) * 10;
-        boss.y = canvas.height * 0.25 + verticalOffset;
-        
+        switch (bossMovementPattern) {
+            case 0: // 通常の左右移動
+                const verticalOffset = Math.sin(time * 2) * 10;
+                boss.y = canvas.height * 0.25 + verticalOffset;
+                boss.x += bossSpeedX * bossDirectionX * (1 + Math.abs(Math.sin(time * 3)) * 0.5);
+                break;
+            case 1: // ジグザグ移動
+                boss.y = canvas.height * 0.25 + Math.sin(time * 4) * 30;
+                boss.x += bossSpeedX * 1.5 * Math.cos(time * 3);
+                break;
+            case 2: // 円運動
+                const radius = 100;
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height * 0.25;
+                boss.x = centerX + Math.cos(time * 2) * radius;
+                boss.y = centerY + Math.sin(time * 2) * radius;
+                break;
+        }
+
+        // 画面外に出ないように制限
+        if (boss.x < 0) boss.x = 0;
+        else if (boss.x > canvas.width - boss.width) boss.x = canvas.width - boss.width;
+        if (boss.y < 0) boss.y = 0;
+        else if (boss.y > canvas.height * 0.5) boss.y = canvas.height * 0.5;
+
         // チャージ攻撃の処理
         if (isBossCharging) {
             bossChargeTimer++;
-            if (bossChargeTimer < 60) { // チャージ時間
-                chargeSpeed += 0.2;
-            } else if (bossChargeTimer < 120) { // 突進攻撃
+            if (bossChargeTimer < 30) { // チャージ時間を短く
+                chargeSpeed += 0.3;
+            } else if (bossChargeTimer < 60) { // 突進時間も短く
                 boss.x += chargeDirection * chargeSpeed;
                 if (boss.x < 0 || boss.x > canvas.width - boss.width) {
                     isBossCharging = false;
@@ -424,11 +460,6 @@ function updateBoss() {
                 isBossCharging = false;
                 chargeSpeed = 0;
             }
-        } else {
-            // 通常の左右移動
-            boss.x += bossSpeedX * bossDirectionX * (1 + Math.abs(Math.sin(time * 3)) * 0.5);
-            if (boss.x < 0) boss.x = 0;
-            else if (boss.x > canvas.width - boss.width) boss.x = canvas.width - boss.width;
         }
 
         // 攻撃パターン
@@ -448,7 +479,7 @@ function updateBoss() {
                 }
                 break;
             case 2: // 広範囲弾
-                if (bossFireTimer >= bossFireInterval * 2) {
+                if (bossFireTimer >= bossFireInterval) {
                     for (let i = -0.6; i <= 0.6; i += 0.2) {
                         fireBossBullet(i);
                     }
@@ -456,7 +487,7 @@ function updateBoss() {
                 }
                 break;
             case 3: // チャージ攻撃
-                if (!isBossCharging && bossFireTimer >= bossFireInterval * 3) {
+                if (!isBossCharging && bossFireTimer >= bossFireInterval * 2) {
                     isBossCharging = true;
                     bossChargeTimer = 0;
                     chargeDirection = Math.random() < 0.5 ? -1 : 1;
@@ -707,9 +738,11 @@ function updateGame() {
     if (currentStage === 4 && bossAlive && boss) {
         for (let i = bullets.length - 1; i >= 0; i--) {
             const bullet = bullets[i];
-            if (checkCollision(bullet, boss)) {
+            if (!bossInvincible && checkCollision(bullet, boss)) {
                 boss.hp--;
                 bullets.splice(i, 1);
+                bossLastHitTime = Date.now();
+                bossInvincible = true;
                 if (boss.hp <= 0) {
                     bossAlive = false;
                     score += 100;
